@@ -9,78 +9,25 @@ import { usePlayerStore } from "../store/usePlayerStore";
 import {
   getPublicSongs,
   getPublicAlbums,
-  getArtistSongs,
-  getAlbumSongs,
-  getSongById,
 } from "../api/catalog/public";
 import { getPublicArtists } from "../api/artists/public";
 import { getUserPlayHistoryApi } from "../api/users/history";
 import { useFavorites } from "../hooks/useFavorites";
 import { useFollowArtists } from "../hooks/useFollowArtists";
+import { usePlaybackActions } from "../hooks/usePlaybackActions";
 
 export const HomePage = () => {
   const user = useAuthStore((state) => state.user);
   const userId = user?.userId || user?.id || null;
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const { playSongWithContext } = usePlayerStore();
+  const playWithAutoQueue = usePlayerStore((state) => state.playWithAutoQueue);
+  const { playSongById, playArtist: handlePlayArtistCard, playAlbum: handlePlayAlbumCard } = usePlaybackActions();
   const { favoriteSongs, isLoadingSongs: isLoadingFavorites } = useFavorites();
   const { followedArtists, isLoadingFollowed } = useFollowArtists();
   const navigate = useNavigate();
 
-  const handlePlayHistoryCard = async (historyItem) => {
-    try {
-      const res = await getSongById(historyItem.songId);
-      const song = res?.data;
-      if (song) {
-        playSongWithContext(song, [song]);
-      }
-    } catch (err) {
-      console.error("Lỗi khi phát bài hát từ lịch sử:", err);
-    }
-  };
-
-  const handlePlayFavoriteCard = async (favItem) => {
-    try {
-      const res = await getSongById(favItem.songId);
-      const song = res?.data;
-      if (song) {
-        playSongWithContext(song, [song]);
-      }
-    } catch (err) {
-      console.error("Lỗi khi phát bài hát từ danh sách yêu thích:", err);
-    }
-  };
-
-  const handlePlayArtistCard = async (artistId) => {
-    try {
-      const res = await getArtistSongs(artistId, {
-        size: 50,
-        sort: "likeCount,desc",
-      });
-      const songs = res.data?.content || [];
-      if (songs.length > 0) {
-        const randomIndex = Math.floor(Math.random() * songs.length);
-        playSongWithContext(songs[randomIndex], songs, randomIndex);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handlePlayAlbumCard = async (albumId) => {
-    try {
-      const res = await getAlbumSongs(albumId, {
-        size: 50,
-        sort: "createdAt,asc",
-      });
-      const songs = res.data?.content || [];
-      if (songs.length > 0) {
-        playSongWithContext(songs[0], songs, 0);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const handlePlayHistoryCard = (historyItem) => playSongById(historyItem?.songId);
+  const handlePlayFavoriteCard = (favItem) => playSongById(favItem?.songId);
 
   const formatAlbumType = (type) => {
     if (!type) return "Album";
@@ -169,11 +116,14 @@ export const HomePage = () => {
                 >
                   <SongCard
                     type="song"
+                    id={item.songId || item.id}
+                    songId={item.songId || item.id}
+                    artistId={item.artistId || item.ownerId}
                     title={item.songTitle}
                     subtitle={item.artistName}
                     artistName={item.artistName}
                     imageUrl={item.coverImage}
-                    onClick={() => handlePlayHistoryCard(item)}
+                    onClick={() => navigate(`/song/${item.songId || item.id}`)}
                     onPlayClick={() => handlePlayHistoryCard(item)}
                   />
                 </div>
@@ -202,11 +152,14 @@ export const HomePage = () => {
                 >
                   <SongCard
                     type="song"
+                    id={item.songId}
+                    songId={item.songId}
+                    artistId={item.artistId || item.ownerId}
                     title={item.songTitle}
                     subtitle={item.artistName}
                     artistName={item.artistName}
                     imageUrl={item.coverImage}
-                    onClick={() => handlePlayFavoriteCard(item)}
+                    onClick={() => navigate(`/song/${item.songId}`)}
                     onPlayClick={() => handlePlayFavoriteCard(item)}
                   />
                 </div>
@@ -235,6 +188,8 @@ export const HomePage = () => {
                 >
                   <SongCard
                     type="artist"
+                    id={artist.artistId || artist.id}
+                    artistId={artist.artistId || artist.id}
                     title={artist.artistName || artist.stageName}
                     subtitle="Nghệ sĩ"
                     artistName={artist.artistName || artist.stageName}
@@ -271,20 +226,23 @@ export const HomePage = () => {
         {isLoadingSongs ? (
           renderSkeletons()
         ) : songs.length > 0 ? (
-          songs.map((song, idx) => (
+          songs.map((song) => (
             <div
               key={song.id}
               className="w-[140px] sm:w-[170px] md:w-[190px] lg:w-[210px] flex-shrink-0"
             >
               <SongCard
                 type="song"
+                id={song.id}
+                songId={song.id}
+                artistId={song.ownerId}
                 title={song.title}
                 subtitle={song.ownerName}
                 artistName={song.ownerName}
                 imageUrl={song.coverImage}
-                onClick={() => playSongWithContext(song, songs, idx)}
+                onClick={() => navigate(`/song/${song.id}`)}
                 onPlayClick={() => {
-                  playSongWithContext(song, songs, idx);
+                  playWithAutoQueue(song);
                 }}
               />
             </div>
@@ -315,6 +273,8 @@ export const HomePage = () => {
             >
               <SongCard
                 type="artist"
+                id={artist.id}
+                artistId={artist.id}
                 title={artist.stageName}
                 subtitle="Nghệ sĩ"
                 artistName={artist.stageName}
@@ -350,6 +310,9 @@ export const HomePage = () => {
             >
               <SongCard
                 type="album"
+                id={album.id}
+                albumId={album.id}
+                artistId={album.ownerId}
                 title={album.title}
                 subtitle={`${formatAlbumType(album.albumType)} • ${album.ownerName}`}
                 artistName={album.ownerName}

@@ -1,21 +1,17 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useCallback } from "react";
 import { useParams, useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Play,
-  Pause,
-  Shuffle,
-  Heart,
-  Clock,
-} from "lucide-react";
+import { Clock } from "lucide-react";
 
 import { getAlbumSongs, getAlbumById } from "../api/catalog/public";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { useFavorites } from "../hooks/useFavorites";
-import { Button } from "../components/ui/Button";
 import { SongRow } from "../components/ui/SongRow";
 import { CoverImage } from "../components/ui/CoverImage";
 import { SkeletonRow } from "../components/ui/Skeleton";
+import { DetailActionBar } from "../components/ui/DetailActionBar";
+
+const getRandomIndex = (len) => Math.floor(Math.random() * len);
 
 export const AlbumPage = () => {
   const { id: albumId } = useParams();
@@ -31,9 +27,11 @@ export const AlbumPage = () => {
   });
   const album = albumDetailData?.data || stateAlbum;
 
-  const { currentSong, isPlaying, setIsPlaying, playSongWithContext } =
-    usePlayerStore();
-  const { isFavoriteAlbum, toggleFavoriteAlbum } = useFavorites();
+  const currentSong = usePlayerStore((state) => state.currentSong);
+  const isPlaying = usePlayerStore((state) => state.isPlaying);
+  const setIsPlaying = usePlayerStore((state) => state.setIsPlaying);
+  const playSongWithContext = usePlayerStore((state) => state.playSongWithContext);
+  const { isFavoriteAlbum, toggleFavoriteAlbum, isFavoriteSong, toggleFavoriteSong } = useFavorites();
 
   const isAlbumLiked = isFavoriteAlbum(albumId || album?.id);
 
@@ -45,6 +43,13 @@ export const AlbumPage = () => {
   });
 
   const songs = useMemo(() => songsData?.data?.content || [], [songsData]);
+
+  const handlePlayRow = useCallback(
+    (song, idx) => {
+      playSongWithContext(song, songs, idx);
+    },
+    [playSongWithContext, songs]
+  );
 
   // ─── Tính tổng thời lượng album ──────────────────────────────────────────
   const totalDuration = useMemo(() => {
@@ -83,7 +88,7 @@ export const AlbumPage = () => {
 
   const handleShufflePlay = () => {
     if (songs.length === 0) return;
-    const randomIndex = Math.floor(Math.random() * songs.length);
+    const randomIndex = getRandomIndex(songs.length);
     playSongWithContext(songs[randomIndex], songs, randomIndex);
   };
 
@@ -95,45 +100,45 @@ export const AlbumPage = () => {
     <div className="flex flex-col min-h-full">
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
       <div
-        className={`relative flex flex-col sm:flex-row items-end gap-6 px-6 pt-16 pb-8 bg-gradient-to-b ${gradientFallback}`}
+        className={`relative flex flex-col sm:flex-row items-center sm:items-end text-center sm:text-left gap-4 sm:gap-6 px-4 sm:px-6 pt-4 sm:pt-16 pb-4 sm:pb-8 bg-gradient-to-b ${gradientFallback}`}
       >
         {/* Ảnh bìa Album */}
-        <div className="flex-shrink-0 w-44 h-44 sm:w-52 sm:h-52 shadow-2xl self-center sm:self-end">
+        <div className="flex-shrink-0 w-36 h-36 sm:w-52 sm:h-52 shadow-2xl mx-auto sm:mx-0">
           <CoverImage
             src={album?.coverImage}
             alt={album?.title || "Album"}
-            className="w-full h-full object-cover rounded-md"
+            className="w-full h-full object-cover rounded-xl sm:rounded-md"
           />
         </div>
 
         {/* Thông tin Album */}
-        <div className="flex flex-col gap-2 pb-2">
-          <span className="text-xs font-bold text-white/80 uppercase tracking-widest">
+        <div className="flex flex-col gap-1.5 sm:gap-2 pb-1 sm:pb-2 min-w-0">
+          <span className="text-[11px] sm:text-xs font-bold text-white/80 uppercase tracking-widest">
             {formatAlbumType(album?.albumType)}
           </span>
-          <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-white leading-none">
+          <h1 className="text-2xl sm:text-4xl md:text-6xl font-black text-white leading-tight break-words">
             {album?.title || "Đang tải..."}
           </h1>
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <span className="text-sm font-bold text-white">
+          <div className="flex items-center justify-center sm:justify-start gap-2 mt-1 sm:mt-2 flex-wrap text-xs sm:text-sm">
+            <span className="font-bold text-white">
               {album?.ownerName}
             </span>
             {album?.releaseDate && (
               <>
-                <span className="text-spotify-sub text-sm">•</span>
-                <span className="text-sm text-spotify-sub">
+                <span className="text-spotify-sub">•</span>
+                <span className="text-spotify-sub">
                   {album.releaseDate.slice(0, 4)}
                 </span>
               </>
             )}
             {songs.length > 0 && (
               <>
-                <span className="text-spotify-sub text-sm">•</span>
-                <span className="text-sm text-spotify-sub">
+                <span className="text-spotify-sub">•</span>
+                <span className="text-spotify-sub">
                   {songs.length} bài hát
                 </span>
-                <span className="text-spotify-sub text-sm">•</span>
-                <span className="text-sm text-spotify-sub">{totalDuration}</span>
+                <span className="text-spotify-sub">•</span>
+                <span className="text-spotify-sub">{totalDuration}</span>
               </>
             )}
           </div>
@@ -141,45 +146,22 @@ export const AlbumPage = () => {
       </div>
 
       {/* ── ACTION BAR ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-4 px-6 py-5 bg-gradient-to-b from-[#1a0a0a]/60 to-transparent">
-        {/* Nút Play chính */}
-        <button
-          onClick={handlePlayAlbum}
-          disabled={songs.length === 0 && !isLoading}
-          className="w-14 h-14 rounded-full bg-spotify-primary hover:bg-spotify-primary-hover flex items-center justify-center shadow-[0_8px_16px_rgba(250,45,72,0.3)] transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-        >
-          {isAlbumPlaying ? (
-            <Pause size={24} fill="white" className="text-white" />
-          ) : (
-            <Play size={24} fill="white" className="text-white ml-1" />
-          )}
-        </button>
-
-        {/* Nút Trộn bài */}
-        <Button variant="ghost" size="md" iconOnly tooltip="Trộn bài" tooltipPosition="top" onClick={handleShufflePlay}>
-          <Shuffle size={22} />
-        </Button>
-
-        {/* Nút Thả tim Album */}
-        <Button
-          variant="ghost"
-          size="md"
-          iconOnly
-          tooltip={isAlbumLiked ? "Xóa khỏi Thư viện" : "Lưu vào Thư viện"}
-          tooltipPosition="top"
-          onClick={() => toggleFavoriteAlbum(album ? { ...album, albumId: albumId || album.id, id: albumId || album.id } : { id: albumId, albumId })}
-          className={`hover:bg-transparent transition-all ${
-            isAlbumLiked
-              ? "!text-[#fa2d48] hover:!text-[#ff4b63]"
-              : "text-spotify-sub hover:text-white"
-          }`}
-        >
-          <Heart
-            size={22}
-            className={isAlbumLiked ? "fill-[#fa2d48] text-[#fa2d48]" : "currentColor"}
-          />
-        </Button>
-      </div>
+      <DetailActionBar
+        isPlaying={isAlbumPlaying}
+        onPlay={handlePlayAlbum}
+        disabled={songs.length === 0 && !isLoading}
+        onShuffle={handleShufflePlay}
+        isLiked={isAlbumLiked}
+        onLike={() =>
+          toggleFavoriteAlbum(
+            album
+              ? { ...album, albumId: albumId || album.id, id: albumId || album.id }
+              : { id: albumId, albumId }
+          )
+        }
+        likeTooltip={isAlbumLiked ? "Xóa khỏi Thư viện" : "Lưu vào Thư viện"}
+        gradientFrom="from-[#1a0a0a]/60"
+      />
 
       {/* ── TRACK LIST ──────────────────────────────────────────────────────── */}
       <div className="px-6 pb-10">
@@ -212,7 +194,9 @@ export const AlbumPage = () => {
                 index={idx + 1}
                 song={song}
                 isPlaying={isPlaying && currentSong?.id === song.id}
-                onPlayClick={() => playSongWithContext(song, songs, idx)}
+                isLiked={isFavoriteSong(song.id)}
+                onToggleLike={toggleFavoriteSong}
+                onPlayClick={handlePlayRow}
               />
             ))}
           </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X, Globe, Lock, Loader2, Music2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../ui/Button";
@@ -45,8 +46,11 @@ export const PlaylistFormModal = ({
   const fileInputRef = useRef(null);
   const nameInputRef = useRef(null);
 
-  // Khởi tạo state khi mở modal
-  useEffect(() => {
+  const [prevModalState, setPrevModalState] = useState({ isOpen: false, playlistId: null });
+
+  // Đồng bộ state form theo props khi mở modal mà không cần setState trong effect
+  if (isOpen !== prevModalState.isOpen || (playlist?.id !== prevModalState.playlistId)) {
+    setPrevModalState({ isOpen, playlistId: playlist?.id });
     if (isOpen) {
       if (isEditMode && playlist) {
         setName(playlist.name || "");
@@ -55,19 +59,24 @@ export const PlaylistFormModal = ({
         setCoverFile(null);
         setCoverPreview(playlist.coverImage || null);
       } else {
-        // Chế độ Create
         setName("");
         setDescription("");
         setIsPublic(false);
         setCoverFile(null);
         setCoverPreview(null);
       }
+    }
+  }
 
-      setTimeout(() => {
+  // Tự động focus vào ô nhập tên playlist khi mở modal
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
         nameInputRef.current?.focus();
       }, 50);
+      return () => clearTimeout(timer);
     }
-  }, [isOpen, isEditMode, playlist]);
+  }, [isOpen]);
 
   // Giải phóng URL blob khi đổi ảnh hoặc unmount
   useEffect(() => {
@@ -197,8 +206,10 @@ export const PlaylistFormModal = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[99990] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
       {/* Backdrop overlay */}
       <div
         className="absolute inset-0"
@@ -340,6 +351,7 @@ export const PlaylistFormModal = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
